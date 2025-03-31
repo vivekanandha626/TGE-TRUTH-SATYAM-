@@ -1,12 +1,34 @@
-# TGE-TRUTH-SATYAM-/ pages/_app.js - Include THE TRUTH (SATYAM) and Satyam Publication Logos import '../styles/globals.css'; import Image from 'next/image'; import Link from 'next/link';
+// server/index.js - THE TRUTH (SATYAM) Backend with Authentication, Admin-Only Editing & Search const express = require('express'); const mongoose = require('mongoose'); const cors = require('cors'); const bcrypt = require('bcryptjs'); const jwt = require('jsonwebtoken'); const Article = require('./models/Article'); const User = require('./models/User');
 
-function MyApp({ Component, pageProps }) { return ( <div> <header className="bg-gray-900 text-white p-4 flex items-center justify-between"> <Link href="/"> <Image src="/logo.png" alt="THE TRUTH (SATYAM) Logo" width={150} height={50} /> </Link> <h1 className="text-xl font-bold">THE TRUTH (SATYAM)</h1> <Image src="/satyam-publication-logo.png" alt="Satyam Publication Logo" width={80} height={40} className="ml-auto" /> </header> <Component {...pageProps} /> </div> ); }
+const app = express(); app.use(express.json()); app.use(cors());
 
-export default MyApp;
+mongoose.connect('mongodb://localhost:27017/the_truth_satyam', { useNewUrlParser: true, useUnifiedTopology: true, });
 
-// Place the logo images in the public directory as /public/logo.png and /public/satyam-publication-logo.png
+const SECRET_KEY = 'your_secret_key';
 
-// pages/index.js - THE TRUTH (SATYAM) Home Page with Logos import { useEffect, useState } from 'react'; import Link from 'next/link'; import Image from 'next/image';
+// User Login app.post('/api/login', async (req, res) => { const { username, password } = req.body; const user = await User.findOne({ username }); if (!user) return res.status(400).json({ message: 'User not found' });
+
+const isMatch = await bcrypt.compare(password, user.password); if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+const token = jwt.sign({ id: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1h' }); res.json({ token, role: user.role, message: 'Login successful' }); });
+
+// Middleware for authentication const authMiddleware = (req, res, next) => { const token = req.headers['authorization']; if (!token) return res.status(401).json({ message: 'Unauthorized' }); try { const decoded = jwt.verify(token.split(' ')[1], SECRET_KEY); req.user = decoded; next(); } catch (err) { res.status(401).json({ message: 'Invalid token' }); } };
+
+// Admin Middleware const adminMiddleware = (req, res, next) => { if (req.user.role !== 'admin') return res.status(403).json({ message: 'Access denied' }); next(); };
+
+// Get all articles (Public access - View only) app.get('/api/articles', async (req, res) => { const articles = await Article.find(); res.json(articles); });
+
+// Search Articles (Public access - View only) app.get('/api/articles/search', async (req, res) => { const { query } = req.query; const articles = await Article.find({ title: new RegExp(query, 'i') }); res.json(articles); });
+
+// Add new article (Admin only) app.post('/api/articles', authMiddleware, adminMiddleware, async (req, res) => { const newArticle = new Article(req.body); await newArticle.save(); res.json(newArticle); });
+
+// Update an article (Admin only) app.put('/api/articles/:id', authMiddleware, adminMiddleware, async (req, res) => { const updatedArticle = await Article.findByIdAndUpdate(req.params.id, req.body, { new: true }); res.json(updatedArticle); });
+
+// Delete an article (Admin only) app.delete('/api/articles/:id', authMiddleware, adminMiddleware, async (req, res) => { await Article.findByIdAndDelete(req.params.id); res.json({ message: 'Article deleted' }); });
+
+app.listen(5000, () => console.log('THE TRUTH (SATYAM) running on port 5000'));
+
+// pages/index.js - THE TRUTH (SATYAM) Home Page (View Only) import { useEffect, useState } from 'react'; import Link from 'next/link'; import Image from 'next/image';
 
 export default function Home() { const [articles, setArticles] = useState([]); const [searchQuery, setSearchQuery] = useState('');
 
